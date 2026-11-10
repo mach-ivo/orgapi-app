@@ -1,0 +1,50 @@
+name: Orgapi Android-App bauen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Projekt entpacken
+        run: unzip -q orgapi-android-projekt.zip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: App vorbereiten
+        working-directory: orgapi-android
+        run: node prepare.mjs
+
+      - name: Immer gleiche Test-Signatur verwenden
+        run: |
+          mkdir -p ~/.android
+          cp orgapi-android/debug.keystore ~/.android/debug.keystore
+
+      - name: App bauen
+        working-directory: orgapi-android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Zum Herunterladen bereitstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp orgapi-android/android/app/build/outputs/apk/debug/app-debug.apk orgapi-test.apk
+          gh release create "test-${{ github.run_number }}" orgapi-test.apk \
+            --repo "${{ github.repository }}" \
+            --title "Orgapi Test-App ${{ github.run_number }}" \
+            --notes "Test-Version zum Installieren auf dem Handy."
